@@ -82,8 +82,11 @@
 <script>
 (function () {
   const params = new URLSearchParams(location.search);
-  const DEFAULT_SRC = "https://docs.google.com/presentation/d/e/2PACX-1vQlmLGhKMHy6pG12pFitj11d8_e214VdZ1pbUu7Fc8AxOduTtisASmOpRk5M75kTfDYZHfTxcZbKTV3/pub?start=true&loop=false&delayms=20000&slide=id.g3fb63560c87_0_265";
-  const SRC = params.get('src') || DEFAULT_SRC;
+  const DEFAULT_SRC = "https://docs.google.com/presentation/d/e/2PACX-1vQlmLGhKMHy6pG12pFitj11d8_e214VdZ1pbUu7Fc8AxOduTtisASmOpRk5M75kTfDYZHfTxcZbKTV3/embed?start=true&loop=false&delayms=20000&slide=id.g3fb63560c87_0_265";
+  // Google refuses to frame the "/pub" (publish-to-web link) URL — only "/embed"
+  // is allowed in an iframe. Normalise either form to /embed.
+  const toEmbed = (u) => u.replace(/\/pub(\?|$)/, '/embed$1');
+  const SRC = toEmbed(params.get('src') || DEFAULT_SRC);
 
   const R = 45, CIRC = 2 * Math.PI * R;
   const prog = document.getElementById('prog');
