@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
+<title>Pecha Kucha Timer</title>
+<style>
+  :root {
+    --calm: #38bdf8;   /* sky blue */
+    --warn: #f59e0b;   /* amber, last 5s */
+    --alert: #ef4444;  /* red, last 3s */
+    --bg: #0b0f14;
+    --muted: #64748b;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: #e2e8f0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 100dvh; text-align: center; user-select: none;
+    padding: env(safe-area-inset-top) 1rem env(safe-area-inset-bottom);
+    transition: background .25s ease;
+  }
+  body.alert { background: #1a0a0a; }
+  .slide-count { font-size: clamp(1.1rem, 5vw, 1.8rem); font-weight: 600; letter-spacing: .04em; color: var(--muted); }
+  .slide-count b { color: #e2e8f0; }
+  .ring-wrap { position: relative; width: min(80vw, 66vh, 460px); aspect-ratio: 1; margin: 1.2rem 0; }
+  .ring-wrap.tappable { cursor: pointer; }
+  .ring-wrap.tappable:active { transform: scale(.98); }
+  .ring-wrap.tappable .track { stroke: #16324a; }
+  svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .track { stroke: #1e293b; fill: none; }
+  .prog { fill: none; stroke: var(--calm); stroke-linecap: round; transition: stroke .2s ease; }
+  .secs {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: clamp(3rem, 22vw, 9rem); font-weight: 700; font-variant-numeric: tabular-nums;
+    color: var(--calm); transition: color .2s ease;
+  }
+  .secs.idle { font-size: clamp(2rem, 12vw, 4.5rem); letter-spacing: .05em; }
+  body.pulse .ring-wrap { animation: pulse .5s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+  .total { font-size: clamp(.9rem, 4vw, 1.3rem); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .controls { margin-top: 1.6rem; display: flex; gap: .8rem; }
+  button {
+    font: inherit; font-size: 1.1rem; font-weight: 600; padding: .8rem 1.8rem; border-radius: 999px;
+    border: none; cursor: pointer; color: #0b0f14; background: var(--calm);
+  }
+  button.ghost { background: transparent; color: var(--muted); border: 1px solid #1e293b; }
+  button:active { transform: scale(.97); }
+  .cfg { margin-top: 1.4rem; color: var(--muted); font-size: .95rem; }
+  .cfg input { width: 3.2rem; font: inherit; text-align: center; background: #111827; color: #e2e8f0; border: 1px solid #1e293b; border-radius: .5rem; padding: .3rem; }
+  .done { font-size: clamp(1.4rem, 7vw, 2.4rem); font-weight: 700; color: #4ade80; }
+  .hint { color: var(--muted); font-size: .8rem; margin-top: .6rem; max-width: 26rem; line-height: 1.4; }
+</style>
+</head>
+<body>
+  <div class="slide-count"><b id="cur">1</b> / <span id="total">20</span></div>
+
+  <div class="ring-wrap" id="ring">
+    <svg viewBox="0 0 100 100">
+      <circle class="track" cx="50" cy="50" r="45" stroke-width="6"></circle>
+      <circle class="prog" id="prog" cx="50" cy="50" r="45" stroke-width="6"></circle>
+    </svg>
+    <div class="secs" id="secs">20</div>
+  </div>
+
+  <div class="total" id="totalTime">6:40 left</div>
+
+  <div class="controls">
+    <button id="reset" class="ghost">Reset</button>
+  </div>
+
+  <div class="cfg">
+    <input id="nSlides" type="number" min="1" value="20"> slides &times;
+    <input id="perSec" type="number" min="1" value="20"> sec
+  </div>
+  <div class="hint">Press <b>Start</b> the exact moment you launch the slideshow. Prop this next to your slides. Ring empties per slide; amber at 5s, red at 3s.</div>
+
+<script>
+(function () {
+  const R = 45, CIRC = 2 * Math.PI * R;
+  const prog = document.getElementById('prog');
+  const secsEl = document.getElementById('secs');
+  const curEl = document.getElementById('cur');
+  const totalEl = document.getElementById('total');
+  const totalTimeEl = document.getElementById('totalTime');
+  const ringWrap = document.getElementById('ring');
+  const resetBtn = document.getElementById('reset');
+  const nSlidesIn = document.getElementById('nSlides');
+  const perSecIn = document.getElementById('perSec');
+  const body = document.body;
+
+  prog.style.strokeDasharray = CIRC;
+
+  let N = 20, PER = 20, startAt = null, raf = null, wakeLock = null;
+
+  function fmt(sec) {
+    sec = Math.max(0, Math.ceil(sec));
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return m + ':' + String(s).padStart(2, '0');
+  }
+
+  function paint(color) {
+    prog.style.stroke = color;
+    secsEl.style.color = color;
+  }
+
+  function tick() {
+    const now = performance.now();
+    const elapsed = (now - startAt) / 1000;           // seconds since start
+    const totalDur = N * PER;
+
+    if (elapsed >= totalDur) { finish(); return; }
+
+    const slide = Math.floor(elapsed / PER);           // 0-indexed
+    const within = elapsed - slide * PER;              // seconds into current slide
+    const remain = PER - within;                       // seconds left in slide
+
+    secsEl.classList.remove('idle');
+    curEl.textContent = slide + 1;
+    secsEl.textContent = Math.ceil(remain);
+    totalTimeEl.textContent = fmt(totalDur - elapsed) + ' left';
+
+    // ring empties: full at start of slide, empty at end
+    prog.style.strokeDashoffset = CIRC * (1 - remain / PER);
+
+    if (remain <= 3) { paint('var(--alert)'); body.classList.add('alert', 'pulse'); }
+    else if (remain <= 5) { paint('var(--warn)'); body.classList.remove('alert', 'pulse'); }
+    else { paint('var(--calm)'); body.classList.remove('alert', 'pulse'); }
+
+    raf = requestAnimationFrame(tick);
+  }
+
+  function finish() {
+    cancelAnimationFrame(raf); raf = null;
+    body.classList.remove('alert', 'pulse');
+    secsEl.classList.remove('idle');
+    secsEl.textContent = '✓';
+    paint('#4ade80');
+    prog.style.strokeDashoffset = 0;
+    curEl.textContent = N;
+    totalTimeEl.textContent = 'Done';
+    ringWrap.classList.add('tappable');
+    releaseWake();
+  }
+
+  async function requestWake() {
+    try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+  }
+  function releaseWake() { try { wakeLock && wakeLock.release(); } catch (e) {} wakeLock = null; }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && raf) requestWake();
+  });
+
+  function begin() {
+    N = Math.max(1, parseInt(nSlidesIn.value) || 20);
+    PER = Math.max(1, parseInt(perSecIn.value) || 20);
+    totalEl.textContent = N;
+    startAt = performance.now();
+    if (raf) cancelAnimationFrame(raf);
+    ringWrap.classList.remove('tappable');
+    secsEl.classList.remove('idle');
+    requestWake();
+    tick();
+  }
+
+  function reset() {
+    if (raf) cancelAnimationFrame(raf); raf = null; startAt = null;
+    body.classList.remove('alert', 'pulse');
+    N = Math.max(1, parseInt(nSlidesIn.value) || 20);
+    PER = Math.max(1, parseInt(perSecIn.value) || 20);
+    totalEl.textContent = N;
+    curEl.textContent = 1;
+    secsEl.textContent = 'Start';
+    secsEl.classList.add('idle');
+    paint('var(--calm)');
+    prog.style.strokeDashoffset = 0;
+    totalTimeEl.textContent = fmt(N * PER) + ' left';
+    ringWrap.classList.add('tappable');
+    releaseWake();
+  }
+
+  ringWrap.addEventListener('click', () => { if (!raf) begin(); });
+  resetBtn.addEventListener('click', reset);
+  reset();
+})();
+</script>
+</body>
+</html>
