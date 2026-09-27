@@ -49,7 +49,7 @@
 
   <div id="gate">
     <h1>Pecha Kucha — auto-synced deck</h1>
-    <p>Export your deck from Google Slides (File → Download → PDF) and choose it below. The app advances the slides and the timer from one clock, so they're always in sync — nothing to press mid-talk.</p>
+    <p>Export your deck from Google Slides (File → Download → PDF) and choose it below. The app advances the slides and the timer from one clock, so they're always in sync — nothing to press mid-talk. For your screen-share, just share this browser tab (no fullscreen needed).</p>
     <label class="filebtn">Choose your slides (PDF)
       <input id="file" type="file" accept="application/pdf" hidden>
     </label>
@@ -89,7 +89,7 @@
 
   let pdf = null, N = 0, PER = 20;
   let startAt = 0, pausedAt = 0, pausedTotal = 0, paused = false, raf = null, wakeLock = null;
-  let shown = 0, renderToken = 0, rot = 180;   // this deck's PDF is drawn upside-down; R rotates if a deck differs
+  let shown = 0, renderToken = 0, rot = 0;   // R rotates 90° if a deck ever renders sideways
 
   const fmt = (s) => { s = Math.max(0, Math.ceil(s)); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); };
   const paint = (c) => { prog.style.stroke = c; secsEl.style.color = c; };
@@ -155,7 +155,9 @@
 
   function begin() {
     PER = Math.max(1, parseInt(perIn.value) || 20);
-    if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+    // No auto-fullscreen: some browsers flip the canvas vertically in OS
+    // fullscreen. The page already fills the window — share this tab/window for
+    // your screen-share. (F still toggles fullscreen; R fixes it if it flips.)
     gate.style.display = 'none';
     timer.style.display = 'flex';
     keys.style.display = 'block';
