@@ -2,189 +2,161 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
-<title>Pecha Kucha Timer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Pecha Kucha — Live Slides + Timer</title>
 <style>
-  :root {
-    --calm: #38bdf8;   /* sky blue */
-    --warn: #f59e0b;   /* amber, last 5s */
-    --alert: #ef4444;  /* red, last 3s */
-    --bg: #0b0f14;
-    --muted: #64748b;
-  }
+  :root { --calm:#38bdf8; --warn:#f59e0b; --alert:#ef4444; --bg:#0b0f14; --muted:#64748b; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; height: 100%; }
-  body {
-    background: var(--bg);
-    color: #e2e8f0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    min-height: 100dvh; text-align: center; user-select: none;
-    padding: env(safe-area-inset-top) 1rem env(safe-area-inset-bottom);
-    transition: background .25s ease;
-  }
-  body.alert { background: #1a0a0a; }
-  .slide-count { font-size: clamp(1.1rem, 5vw, 1.8rem); font-weight: 600; letter-spacing: .04em; color: var(--muted); }
-  .slide-count b { color: #e2e8f0; }
-  .ring-wrap { position: relative; width: min(80vw, 66vh, 460px); aspect-ratio: 1; margin: 1.2rem 0; }
-  .ring-wrap.tappable { cursor: pointer; }
-  .ring-wrap.tappable:active { transform: scale(.98); }
-  .ring-wrap.tappable .track { stroke: #16324a; }
-  svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: #e2e8f0; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+
+  /* Slightly taller than the window so Google's bottom "Google Slides" bar is
+     clipped off. */
+  #frame { position: fixed; top: 0; left: 0; width: 100%; height: calc(100% + 46px); border: 0; background: #000; }
+
+  #gate { position: fixed; inset: 0; z-index: 30; background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.2rem; text-align: center; padding: 1.2rem; }
+  #gate h1 { font-size: clamp(1.2rem,4vw,1.8rem); font-weight: 600; margin: 0; }
+  #gate p { color: var(--muted); max-width: 36rem; margin: 0; line-height: 1.5; font-size: .92rem; }
+  #url { width: min(90vw, 40rem); font: inherit; font-size: .9rem; background: #111827; color: #e2e8f0; border: 1px solid #1e293b; border-radius: .5rem; padding: .7rem .9rem; }
+  .row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; justify-content: center; color: var(--muted); font-size: .95rem; }
+  .row input[type=number] { width: 3rem; font: inherit; text-align: center; background: #111827; color: #e2e8f0; border: 1px solid #1e293b; border-radius: .4rem; padding: .25rem; }
+  #start { font: inherit; font-size: 1.3rem; font-weight: 700; padding: 1rem 3rem; border-radius: 999px; border: none; cursor: pointer; color: #0b0f14; background: var(--calm); }
+  #start:disabled { opacity: .4; cursor: not-allowed; }
+  #start:active:not(:disabled) { transform: scale(.97); }
+
+  #timer { position: fixed; right: 20px; bottom: 20px; z-index: 20; display: none; align-items: center; gap: 12px;
+    padding: 10px 14px; border-radius: 16px; background: rgba(11,15,20,.72); backdrop-filter: blur(6px);
+    box-shadow: 0 6px 24px rgba(0,0,0,.35); transition: opacity .2s ease; }
+  #timer.hidden { opacity: 0; pointer-events: none; }
+  .ring-wrap { position: relative; width: 68px; height: 68px; }
+  #timer svg { width: 100%; height: 100%; transform: rotate(-90deg); }
   .track { stroke: #1e293b; fill: none; }
   .prog { fill: none; stroke: var(--calm); stroke-linecap: round; transition: stroke .2s ease; }
-  .secs {
-    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    font-size: clamp(3rem, 22vw, 9rem); font-weight: 700; font-variant-numeric: tabular-nums;
-    color: var(--calm); transition: color .2s ease;
-  }
-  .secs.idle { font-size: clamp(2rem, 12vw, 4.5rem); letter-spacing: .05em; }
-  body.pulse .ring-wrap { animation: pulse .5s ease-in-out infinite; }
-  @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.04); } }
-  .total { font-size: clamp(.9rem, 4vw, 1.3rem); color: var(--muted); font-variant-numeric: tabular-nums; }
-  .controls { margin-top: 1.6rem; display: flex; gap: .8rem; }
-  button {
-    font: inherit; font-size: 1.1rem; font-weight: 600; padding: .8rem 1.8rem; border-radius: 999px;
-    border: none; cursor: pointer; color: #0b0f14; background: var(--calm);
-  }
-  button.ghost { background: transparent; color: var(--muted); border: 1px solid #1e293b; }
-  button:active { transform: scale(.97); }
-  .cfg { margin-top: 1.4rem; color: var(--muted); font-size: .95rem; }
-  .cfg input { width: 3.2rem; font: inherit; text-align: center; background: #111827; color: #e2e8f0; border: 1px solid #1e293b; border-radius: .5rem; padding: .3rem; }
-  .done { font-size: clamp(1.4rem, 7vw, 2.4rem); font-weight: 700; color: #4ade80; }
-  .hint { color: var(--muted); font-size: .8rem; margin-top: .6rem; max-width: 26rem; line-height: 1.4; }
+  .secs { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--calm); transition: color .2s ease; }
+  .meta .slide { font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .meta .total { font-size: .72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  #timer.pulse .ring-wrap { animation: pulse .5s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+  .keys { position: fixed; left: 12px; bottom: 10px; z-index: 20; color: rgba(148,163,184,.6); font-size: .72rem; transition: opacity .6s ease; }
 </style>
 </head>
 <body>
-  <div class="slide-count"><b id="cur">1</b> / <span id="total">20</span></div>
-
-  <div class="ring-wrap" id="ring">
-    <svg viewBox="0 0 100 100">
-      <circle class="track" cx="50" cy="50" r="45" stroke-width="6"></circle>
-      <circle class="prog" id="prog" cx="50" cy="50" r="45" stroke-width="6"></circle>
-    </svg>
-    <div class="secs" id="secs">20</div>
+  <div id="gate">
+    <h1>Pecha Kucha — live slides + timer</h1>
+    <p>Publish your deck (File → Share → Publish to web → <b>Embed</b>), paste the link below, and press Start. The slides auto-advance every 20s (GIFs animate). If the countdown isn't hitting 0 exactly when a slide flips, tap <b>Space</b> once as a slide changes to lock it — then it stays synced. <b>Un-publish the deck when you're done.</b></p>
+    <input id="url" type="text" placeholder="Paste your published Google Slides link (…/pub?… or …/embed?…)" />
+    <div class="row"><input id="nSlides" type="number" min="1" value="20"> slides &times; <input id="perSec" type="number" min="1" value="20"> sec each</div>
+    <button id="start" disabled>Start presentation</button>
+    <div class="row"><b>Space</b> lock to slide change &nbsp;·&nbsp; <b>←/→</b> nudge &nbsp;·&nbsp; <b>T</b> hide timer &nbsp;·&nbsp; <b>F</b> fullscreen</div>
+    <p style="font-size:.8rem">Tip: for your screen-share, just share this browser tab — no fullscreen needed.</p>
   </div>
 
-  <div class="total" id="totalTime">6:40 left</div>
-
-  <div class="controls">
-    <button id="reset" class="ghost">Reset</button>
+  <div id="timer">
+    <div class="ring-wrap">
+      <svg viewBox="0 0 100 100">
+        <circle class="track" cx="50" cy="50" r="45" stroke-width="8"></circle>
+        <circle class="prog" id="prog" cx="50" cy="50" r="45" stroke-width="8"></circle>
+      </svg>
+      <div class="secs" id="secs">20</div>
+    </div>
+    <div class="meta">
+      <div class="slide"><span id="cur">1</span>/<span id="tot">20</span></div>
+      <div class="total" id="left"></div>
+    </div>
   </div>
 
-  <div class="cfg">
-    <input id="nSlides" type="number" min="1" value="20"> slides &times;
-    <input id="perSec" type="number" min="1" value="20"> sec
-  </div>
-  <div class="hint">Press <b>Start</b> the exact moment you launch the slideshow. Prop this next to your slides. Ring empties per slide; amber at 5s, red at 3s.</div>
+  <div class="keys" id="keys" style="display:none">Space lock · ←/→ nudge · T hide · F fullscreen</div>
 
 <script>
 (function () {
+  const params = new URLSearchParams(location.search);
   const R = 45, CIRC = 2 * Math.PI * R;
-  const prog = document.getElementById('prog');
-  const secsEl = document.getElementById('secs');
-  const curEl = document.getElementById('cur');
-  const totalEl = document.getElementById('total');
-  const totalTimeEl = document.getElementById('totalTime');
-  const ringWrap = document.getElementById('ring');
-  const resetBtn = document.getElementById('reset');
-  const nSlidesIn = document.getElementById('nSlides');
-  const perSecIn = document.getElementById('perSec');
-  const body = document.body;
-
+  const $ = (id) => document.getElementById(id);
+  const prog = $('prog'), secsEl = $('secs'), curEl = $('cur'), totEl = $('tot'), leftEl = $('left');
+  const timer = $('timer'), gate = $('gate'), keys = $('keys');
+  const urlIn = $('url'), startBtn = $('start'), nIn = $('nSlides'), perIn = $('perSec');
   prog.style.strokeDasharray = CIRC;
 
-  let N = 20, PER = 20, startAt = null, raf = null, wakeLock = null;
+  // Build the embed src ourselves so auto-advance always works: only /embed can
+  // be framed, and start=true + delayms=<sec> is what makes it actually advance
+  // (independent of whatever the publish dialog set). We strip the pasted query
+  // and set our own params.
+  const buildSrc = (u, per) => {
+    const base = u.trim().replace(/\/pub(\?|$)/, '/embed$1').split('?')[0].split('#')[0];
+    return `${base}?start=true&loop=false&delayms=${per * 1000}`;
+  };
 
-  function fmt(sec) {
-    sec = Math.max(0, Math.ceil(sec));
-    const m = Math.floor(sec / 60), s = sec % 60;
-    return m + ':' + String(s).padStart(2, '0');
-  }
+  // Prefill from ?src= (keep your link in a private bookmark, not in the repo).
+  if (params.get('src')) urlIn.value = params.get('src');
+  const okUrl = () => /docs\.google\.com\/presentation\//.test(urlIn.value);
+  const refresh = () => { startBtn.disabled = !okUrl(); };
+  urlIn.addEventListener('input', refresh); refresh();
 
-  function paint(color) {
-    prog.style.stroke = color;
-    secsEl.style.color = color;
-  }
+  let N = 20, PER = 20, startAt = 0, raf = null, wakeLock = null, frame = null, running = false;
+  const fmt = (s) => { s = Math.max(0, Math.ceil(s)); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); };
+  const paint = (c) => { prog.style.stroke = c; secsEl.style.color = c; };
 
   function tick() {
-    const now = performance.now();
-    const elapsed = (now - startAt) / 1000;           // seconds since start
-    const totalDur = N * PER;
-
-    if (elapsed >= totalDur) { finish(); return; }
-
-    const slide = Math.floor(elapsed / PER);           // 0-indexed
-    const within = elapsed - slide * PER;              // seconds into current slide
-    const remain = PER - within;                       // seconds left in slide
-
-    secsEl.classList.remove('idle');
-    curEl.textContent = slide + 1;
+    const elapsed = (performance.now() - startAt) / 1000;   // seconds since slide 1 began
+    const idx = Math.floor(elapsed / PER);                   // 0-based current slide
+    if (idx >= N) { finish(); return; }
+    const remain = PER - (elapsed - idx * PER);
+    curEl.textContent = idx + 1;
     secsEl.textContent = Math.ceil(remain);
-    totalTimeEl.textContent = fmt(totalDur - elapsed) + ' left';
-
-    // ring empties: full at start of slide, empty at end
+    leftEl.textContent = fmt(N * PER - elapsed) + ' left';
     prog.style.strokeDashoffset = CIRC * (1 - remain / PER);
-
-    if (remain <= 3) { paint('var(--alert)'); body.classList.add('alert', 'pulse'); }
-    else if (remain <= 5) { paint('var(--warn)'); body.classList.remove('alert', 'pulse'); }
-    else { paint('var(--calm)'); body.classList.remove('alert', 'pulse'); }
-
+    if (remain <= 3) { paint('var(--alert)'); timer.classList.add('pulse'); }
+    else if (remain <= 5) { paint('var(--warn)'); timer.classList.remove('pulse'); }
+    else { paint('var(--calm)'); timer.classList.remove('pulse'); }
     raf = requestAnimationFrame(tick);
   }
-
   function finish() {
-    cancelAnimationFrame(raf); raf = null;
-    body.classList.remove('alert', 'pulse');
-    secsEl.classList.remove('idle');
-    secsEl.textContent = '✓';
-    paint('#4ade80');
-    prog.style.strokeDashoffset = 0;
-    curEl.textContent = N;
-    totalTimeEl.textContent = 'Done';
-    ringWrap.classList.add('tappable');
+    cancelAnimationFrame(raf); raf = null; running = false;
+    timer.classList.remove('pulse'); secsEl.textContent = '✓'; paint('#4ade80');
+    prog.style.strokeDashoffset = 0; curEl.textContent = N; leftEl.textContent = 'Done';
     releaseWake();
   }
-
-  async function requestWake() {
-    try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
-  }
+  async function requestWake() { try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} }
   function releaseWake() { try { wakeLock && wakeLock.release(); } catch (e) {} wakeLock = null; }
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && raf) requestWake();
-  });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && running) requestWake(); });
 
   function begin() {
-    N = Math.max(1, parseInt(nSlidesIn.value) || 20);
-    PER = Math.max(1, parseInt(perSecIn.value) || 20);
-    totalEl.textContent = N;
-    startAt = performance.now();
-    if (raf) cancelAnimationFrame(raf);
-    ringWrap.classList.remove('tappable');
-    secsEl.classList.remove('idle');
-    requestWake();
-    tick();
-  }
+    if (!okUrl()) return;
+    N = Math.max(1, parseInt(nIn.value) || 20);
+    PER = Math.max(1, parseInt(perIn.value) || 20);
+    totEl.textContent = N; secsEl.textContent = PER; leftEl.textContent = fmt(N * PER) + ' left';
 
-  function reset() {
-    if (raf) cancelAnimationFrame(raf); raf = null; startAt = null;
-    body.classList.remove('alert', 'pulse');
-    N = Math.max(1, parseInt(nSlidesIn.value) || 20);
-    PER = Math.max(1, parseInt(perSecIn.value) || 20);
-    totalEl.textContent = N;
-    curEl.textContent = 1;
-    secsEl.textContent = 'Start';
-    secsEl.classList.add('idle');
-    paint('var(--calm)');
-    prog.style.strokeDashoffset = 0;
-    totalTimeEl.textContent = fmt(N * PER) + ' left';
-    ringWrap.classList.add('tappable');
-    releaseWake();
-  }
+    frame = document.createElement('iframe');
+    frame.id = 'frame';
+    frame.allow = 'autoplay; fullscreen';
+    frame.src = buildSrc(urlIn.value, PER);
+    document.body.appendChild(frame);
+    gate.style.display = 'none';
 
-  ringWrap.addEventListener('click', () => { if (!raf) begin(); });
-  resetBtn.addEventListener('click', reset);
-  reset();
+    // Start the timer now (on your click). The embed begins advancing a moment
+    // later once it loads; a single Space tap on the first slide change locks the
+    // constant offset away for the rest (both run at 20s, so no drift after).
+    startAt = performance.now(); running = true;
+    timer.style.display = 'flex'; keys.style.display = 'block';
+    setTimeout(() => { keys.style.opacity = '0'; }, 8000);
+    requestWake(); tick();
+  }
+  // Tap when a slide changes: restart the current slide's countdown from now.
+  // Aligns the countdown WITHOUT bumping the slide number (that phantom bump made
+  // the timer finish one slide early).
+  function resync() { const idx = Math.floor((performance.now() - startAt) / (PER * 1000)); startAt = performance.now() - idx * PER * 1000; }
+  function nudge(ms) { startAt += ms; }
+
+  startBtn.addEventListener('click', begin);
+  document.addEventListener('keydown', (e) => {
+    if (!running) return;
+    if (e.code === 'Space') { e.preventDefault(); resync(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); nudge(250); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); nudge(-250); }
+    else if (e.key.toLowerCase() === 't') timer.classList.toggle('hidden');
+    else if (e.key.toLowerCase() === 'f') { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {}); }
+  });
 })();
 </script>
 </body>
