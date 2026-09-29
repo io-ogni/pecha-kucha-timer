@@ -78,8 +78,14 @@
   const urlIn = $('url'), startBtn = $('start'), nIn = $('nSlides'), perIn = $('perSec');
   prog.style.strokeDasharray = CIRC;
 
-  // Only /embed can be framed; normalise a pasted /pub link.
-  const toEmbed = (u) => u.trim().replace(/\/pub(\?|$)/, '/embed$1');
+  // Build the embed src ourselves so auto-advance always works: only /embed can
+  // be framed, and start=true + delayms=<sec> is what makes it actually advance
+  // (independent of whatever the publish dialog set). We strip the pasted query
+  // and set our own params.
+  const buildSrc = (u, per) => {
+    const base = u.trim().replace(/\/pub(\?|$)/, '/embed$1').split('?')[0].split('#')[0];
+    return `${base}?start=true&loop=false&delayms=${per * 1000}`;
+  };
 
   // Prefill from ?src= (keep your link in a private bookmark, not in the repo).
   if (params.get('src')) urlIn.value = params.get('src');
@@ -125,7 +131,7 @@
     frame = document.createElement('iframe');
     frame.id = 'frame';
     frame.allow = 'autoplay; fullscreen';
-    frame.src = toEmbed(urlIn.value);
+    frame.src = buildSrc(urlIn.value, PER);
     document.body.appendChild(frame);
     gate.style.display = 'none';
 
