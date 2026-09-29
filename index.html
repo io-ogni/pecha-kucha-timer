@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Pecha Kucha — Live Slides + Timer</title>
 <style>
-  :root { --calm:#38bdf8; --warn:#f59e0b; --alert:#ef4444; --bg:#0b0f14; --muted:#64748b; }
+  :root { --calm:#38bdf8; --warn:#f59e0b; --alert:#ef4444; --bg:#0b0f14; --muted:#94a3b8; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: #e2e8f0; overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
@@ -17,8 +17,9 @@
   #gate { position: fixed; inset: 0; z-index: 30; background: var(--bg);
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.2rem; text-align: center; padding: 1.2rem; }
   #gate h1 { font-size: clamp(1.2rem,4vw,1.8rem); font-weight: 600; margin: 0; }
-  #gate p { color: var(--muted); max-width: 36rem; margin: 0; line-height: 1.5; font-size: .92rem; }
-  #url { width: min(90vw, 40rem); font: inherit; font-size: .9rem; background: #111827; color: #e2e8f0; border: 1px solid #1e293b; border-radius: .5rem; padding: .7rem .9rem; }
+  #gate p { color: #d7dee7; max-width: 36rem; margin: 0; line-height: 1.55; font-size: .95rem; }
+  #url { width: min(90vw, 40rem); font: inherit; font-size: .9rem; background: #111827; color: #e2e8f0; border: 1px solid #334155; border-radius: .5rem; padding: .7rem .9rem; }
+  #url::placeholder { color: #94a3b8; }
   .row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; justify-content: center; color: var(--muted); font-size: .95rem; }
   .row input[type=number] { width: 3rem; font: inherit; text-align: center; background: #111827; color: #e2e8f0; border: 1px solid #1e293b; border-radius: .4rem; padding: .25rem; }
   #start { font: inherit; font-size: 1.3rem; font-weight: 700; padding: 1rem 3rem; border-radius: 999px; border: none; cursor: pointer; color: #0b0f14; background: var(--calm); }
@@ -53,17 +54,17 @@
   <div id="gate">
     <h1>Pecha Kucha — live slides + timer</h1>
     <p>Publish your deck (File → Share → Publish to web → <b>Embed</b>), paste the link below, and press Start. The slides auto-advance every 20s (GIFs animate). If the countdown isn't hitting 0 exactly when a slide flips, tap <b>Space</b> once as a slide changes to lock it — then it stays synced. <b>Un-publish the deck when you're done.</b></p>
-    <input id="url" type="text" placeholder="Paste your published Google Slides link (…/pub?… or …/embed?…)" />
-    <div class="row"><input id="nSlides" type="number" min="1" value="20"> slides &times; <input id="perSec" type="number" min="1" value="20"> sec each</div>
+    <input id="url" type="text" aria-label="Published Google Slides link" placeholder="Paste your published Google Slides link (…/pub?… or …/embed?…)" />
+    <div class="row"><input id="nSlides" type="number" min="1" value="20" aria-label="Number of slides"> slides &times; <input id="perSec" type="number" min="1" value="20" aria-label="Seconds per slide"> sec each</div>
     <button id="start" disabled>Start presentation</button>
     <div class="row"><b>Space</b> lock to slide change &nbsp;·&nbsp; <b>←/→</b> nudge &nbsp;·&nbsp; <b>T</b> hide timer &nbsp;·&nbsp; <b>F</b> fullscreen</div>
     <p style="font-size:.8rem">Tip: for your screen-share, just share this browser tab — no fullscreen needed.</p>
     <button id="privacyBtn" class="privacy-link">Privacy — where does my link go?</button>
   </div>
 
-  <div id="privacy">
+  <div id="privacy" role="dialog" aria-modal="true" aria-labelledby="privacyTitle">
     <div class="card">
-      <h2>Your privacy</h2>
+      <h2 id="privacyTitle">Your privacy</h2>
       <p>This runs <b>entirely in your browser</b>. The deck link you paste stays on your device — it's never uploaded, stored, or sent anywhere, and it isn't in this app's code.</p>
       <p>Nothing is saved: <b>no cookies, no localStorage, no analytics</b>. The only external thing loaded is your own Google Slides.</p>
       <p>The one caveat: to auto-advance at 20s, Google needs the deck <b>published to web</b>. Publish it temporarily and <b>un-publish after your talk</b>.</p>
@@ -71,7 +72,7 @@
     </div>
   </div>
 
-  <div id="timer">
+  <div id="timer" aria-hidden="true">
     <div class="ring-wrap">
       <svg viewBox="0 0 100 100">
         <circle class="track" cx="50" cy="50" r="45" stroke-width="8"></circle>
@@ -173,6 +174,7 @@
   $('privacyBtn').addEventListener('click', () => { privacy.style.display = 'flex'; });
   $('privacyClose').addEventListener('click', () => { privacy.style.display = 'none'; });
   privacy.addEventListener('click', (e) => { if (e.target === privacy) privacy.style.display = 'none'; });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && privacy.style.display === 'flex') privacy.style.display = 'none'; });
   document.addEventListener('keydown', (e) => {
     if (!running) return;
     if (e.code === 'Space') { e.preventDefault(); resync(); }
