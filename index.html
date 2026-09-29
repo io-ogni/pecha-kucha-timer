@@ -39,6 +39,14 @@
   #timer.pulse .ring-wrap { animation: pulse .5s ease-in-out infinite; }
   @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
   .keys { position: fixed; left: 12px; bottom: 10px; z-index: 20; color: rgba(148,163,184,.6); font-size: .72rem; transition: opacity .6s ease; }
+
+  .privacy-link { background: none; border: none; color: var(--muted); font-size: .8rem; text-decoration: underline; cursor: pointer; padding: 0; }
+  .privacy-link:hover { color: #e2e8f0; }
+  #privacy { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.65); padding: 1rem; }
+  #privacy .card { max-width: 30rem; background: #0f1620; border: 1px solid #1e293b; border-radius: 14px; padding: 1.4rem 1.6rem; text-align: left; }
+  #privacy h2 { margin: 0 0 .4rem; font-size: 1.1rem; }
+  #privacy p { color: var(--muted); font-size: .88rem; line-height: 1.55; margin: .55rem 0; }
+  #privacy .close { margin-top: 1rem; font: inherit; font-weight: 600; padding: .5rem 1.4rem; border-radius: 999px; border: none; cursor: pointer; color: #0b0f14; background: var(--calm); }
 </style>
 </head>
 <body>
@@ -50,6 +58,17 @@
     <button id="start" disabled>Start presentation</button>
     <div class="row"><b>Space</b> lock to slide change &nbsp;·&nbsp; <b>←/→</b> nudge &nbsp;·&nbsp; <b>T</b> hide timer &nbsp;·&nbsp; <b>F</b> fullscreen</div>
     <p style="font-size:.8rem">Tip: for your screen-share, just share this browser tab — no fullscreen needed.</p>
+    <button id="privacyBtn" class="privacy-link">Privacy — where does my link go?</button>
+  </div>
+
+  <div id="privacy">
+    <div class="card">
+      <h2>Your privacy</h2>
+      <p>This runs <b>entirely in your browser</b>. The deck link you paste stays on your device — it's never uploaded, stored, or sent anywhere, and it isn't in this app's code.</p>
+      <p>Nothing is saved: <b>no cookies, no localStorage, no analytics</b>. The only external thing loaded is your own Google Slides.</p>
+      <p>The one caveat: to auto-advance at 20s, Google needs the deck <b>published to web</b>. Publish it temporarily and <b>un-publish after your talk</b>.</p>
+      <button class="close" id="privacyClose">Got it</button>
+    </div>
   </div>
 
   <div id="timer">
@@ -149,6 +168,11 @@
   function nudge(ms) { startAt += ms; }
 
   startBtn.addEventListener('click', begin);
+
+  const privacy = $('privacy');
+  $('privacyBtn').addEventListener('click', () => { privacy.style.display = 'flex'; });
+  $('privacyClose').addEventListener('click', () => { privacy.style.display = 'none'; });
+  privacy.addEventListener('click', (e) => { if (e.target === privacy) privacy.style.display = 'none'; });
   document.addEventListener('keydown', (e) => {
     if (!running) return;
     if (e.code === 'Space') { e.preventDefault(); resync(); }
