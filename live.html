@@ -93,17 +93,16 @@
   const refresh = () => { startBtn.disabled = !okUrl(); };
   urlIn.addEventListener('input', refresh); refresh();
 
-  let N = 20, PER = 20, cycleStart = 0, slideNum = 1, raf = null, wakeLock = null, frame = null, running = false;
+  let N = 20, PER = 20, startAt = 0, raf = null, wakeLock = null, frame = null, running = false;
   const fmt = (s) => { s = Math.max(0, Math.ceil(s)); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); };
   const paint = (c) => { prog.style.stroke = c; secsEl.style.color = c; };
 
   function tick() {
-    const remain0 = PER - (performance.now() - cycleStart) / 1000;
-    let remain = remain0;
-    while (remain <= 0 && slideNum < N) { slideNum++; cycleStart += PER * 1000; remain += PER; }
-    if (slideNum >= N && remain <= 0) { finish(); return; }
-    const elapsed = (slideNum - 1) * PER + (PER - remain);
-    curEl.textContent = slideNum;
+    const elapsed = (performance.now() - startAt) / 1000;   // seconds since slide 1 began
+    const idx = Math.floor(elapsed / PER);                   // 0-based current slide
+    if (idx >= N) { finish(); return; }
+    const remain = PER - (elapsed - idx * PER);
+    curEl.textContent = idx + 1;
     secsEl.textContent = Math.ceil(remain);
     leftEl.textContent = fmt(N * PER - elapsed) + ' left';
     prog.style.strokeDashoffset = CIRC * (1 - remain / PER);
@@ -138,13 +137,16 @@
     // Start the timer now (on your click). The embed begins advancing a moment
     // later once it loads; a single Space tap on the first slide change locks the
     // constant offset away for the rest (both run at 20s, so no drift after).
-    cycleStart = performance.now(); slideNum = 1; running = true;
+    startAt = performance.now(); running = true;
     timer.style.display = 'flex'; keys.style.display = 'block';
     setTimeout(() => { keys.style.opacity = '0'; }, 8000);
     requestWake(); tick();
   }
-  function resync() { cycleStart = performance.now(); if (slideNum < N) slideNum++; }
-  function nudge(ms) { cycleStart += ms; }
+  // Tap when a slide changes: restart the current slide's countdown from now.
+  // Aligns the countdown WITHOUT bumping the slide number (that phantom bump made
+  // the timer finish one slide early).
+  function resync() { const idx = Math.floor((performance.now() - startAt) / (PER * 1000)); startAt = performance.now() - idx * PER * 1000; }
+  function nudge(ms) { startAt += ms; }
 
   startBtn.addEventListener('click', begin);
   document.addEventListener('keydown', (e) => {
