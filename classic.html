@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Pecha Kucha — Live Slides + Timer</title>
+<style>
+  :root { --calm:#38bdf8; --warn:#f59e0b; --alert:#ef4444; --bg:#0b0f14; --muted:#94a3b8; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: #e2e8f0; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+
+  /* Slightly taller than the window so Google's bottom "Google Slides" bar is
+     clipped off. */
+  #frame { position: fixed; top: 0; left: 0; width: 100%; height: calc(100% + 46px); border: 0; background: #000; }
+
+  #gate { position: fixed; inset: 0; z-index: 30; background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.2rem; text-align: center; padding: 1.2rem; }
+  #gate h1 { font-size: clamp(1.2rem,4vw,1.8rem); font-weight: 600; margin: 0; }
+  #gate p { color: #d7dee7; max-width: 36rem; margin: 0; line-height: 1.55; font-size: .95rem; }
+  #url { width: min(90vw, 40rem); font: inherit; font-size: .9rem; background: #111827; color: #e2e8f0; border: 1px solid #334155; border-radius: .5rem; padding: .7rem .9rem; }
+  #url::placeholder { color: #94a3b8; }
+  .row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; justify-content: center; color: var(--muted); font-size: .95rem; }
+  .row input[type=number] { width: 3rem; font: inherit; text-align: center; background: #111827; color: #e2e8f0; border: 1px solid #1e293b; border-radius: .4rem; padding: .25rem; }
+  #start { font: inherit; font-size: 1.3rem; font-weight: 700; padding: 1rem 3rem; border-radius: 999px; border: none; cursor: pointer; color: #0b0f14; background: var(--calm); }
+  #start:disabled { opacity: .4; cursor: not-allowed; }
+  #start:active:not(:disabled) { transform: scale(.97); }
+
+  #timer { position: fixed; right: 20px; bottom: 20px; z-index: 20; display: none; align-items: center; gap: 12px;
+    padding: 10px 14px; border-radius: 16px; background: rgba(11,15,20,.72); backdrop-filter: blur(6px);
+    box-shadow: 0 6px 24px rgba(0,0,0,.35); transition: opacity .2s ease; }
+  #timer.hidden { opacity: 0; pointer-events: none; }
+  .ring-wrap { position: relative; width: 68px; height: 68px; }
+  #timer svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .track { stroke: #1e293b; fill: none; }
+  .prog { fill: none; stroke: var(--calm); stroke-linecap: round; transition: stroke .2s ease; }
+  .secs { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--calm); transition: color .2s ease; }
+  .meta .slide { font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .meta .total { font-size: .72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  #timer.pulse .ring-wrap { animation: pulse .5s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+  .keys { position: fixed; left: 12px; bottom: 10px; z-index: 20; color: rgba(148,163,184,.6); font-size: .72rem; transition: opacity .6s ease; }
+
+  .privacy-link { background: none; border: none; color: var(--muted); font-size: .8rem; text-decoration: underline; cursor: pointer; padding: 0; }
+  .privacy-link:hover { color: #e2e8f0; }
+  #privacy { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.65); padding: 1rem; }
+  #privacy .card { max-width: 30rem; background: #0f1620; border: 1px solid #1e293b; border-radius: 14px; padding: 1.4rem 1.6rem; text-align: left; }
+  #privacy h2 { margin: 0 0 .4rem; font-size: 1.1rem; }
+  #privacy p { color: var(--muted); font-size: .88rem; line-height: 1.55; margin: .55rem 0; }
+  #privacy .close { margin-top: 1rem; font: inherit; font-weight: 600; padding: .5rem 1.4rem; border-radius: 999px; border: none; cursor: pointer; color: #0b0f14; background: var(--calm); }
+</style>
+</head>
+<body>
+  <div id="gate">
+    <h1>Pecha Kucha — live slides + timer</h1>
+    <p>Publish your deck (File → Share → Publish to web → <b>Embed</b>), paste the link below, and press Start. The slides auto-advance every 20s (GIFs animate). If the countdown isn't hitting 0 exactly when a slide flips, tap <b>Space</b> once as a slide changes to lock it — then it stays synced. <b>Un-publish the deck when you're done.</b></p>
+    <input id="url" type="text" aria-label="Published Google Slides link" placeholder="Paste your published Google Slides link (…/pub?… or …/embed?…)" />
+    <div class="row"><input id="nSlides" type="number" min="1" value="20" aria-label="Number of slides"> slides &times; <input id="perSec" type="number" min="1" value="20" aria-label="Seconds per slide"> sec each</div>
+    <button id="start" disabled>Start presentation</button>
+    <div class="row"><b>Space</b> lock to slide change &nbsp;·&nbsp; <b>←/→</b> nudge &nbsp;·&nbsp; <b>T</b> hide timer &nbsp;·&nbsp; <b>F</b> fullscreen</div>
+    <p style="font-size:.8rem">Tip: for your screen-share, just share this browser tab — no fullscreen needed.</p>
+    <button id="privacyBtn" class="privacy-link">Privacy — where does my link go?</button>
+  </div>
+
+  <div id="privacy" role="dialog" aria-modal="true" aria-labelledby="privacyTitle">
+    <div class="card">
+      <h2 id="privacyTitle">Your privacy</h2>
+      <p>This runs <b>entirely in your browser</b>. The deck link you paste stays on your device — it's never uploaded, stored, or sent anywhere, and it isn't in this app's code.</p>
+      <p>Nothing is saved: <b>no cookies, no localStorage, no analytics</b>. The only external thing loaded is your own Google Slides.</p>
+      <p>The one caveat: to auto-advance at 20s, Google needs the deck <b>published to web</b>. Publish it temporarily and <b>un-publish after your talk</b>.</p>
+      <button class="close" id="privacyClose">Got it</button>
+    </div>
+  </div>
+
+  <div id="timer" aria-hidden="true">
+    <div class="ring-wrap">
+      <svg viewBox="0 0 100 100">
+        <circle class="track" cx="50" cy="50" r="45" stroke-width="8"></circle>
+        <circle class="prog" id="prog" cx="50" cy="50" r="45" stroke-width="8"></circle>
+      </svg>
+      <div class="secs" id="secs">20</div>
+    </div>
+    <div class="meta">
+      <div class="slide"><span id="cur">1</span>/<span id="tot">20</span></div>
+      <div class="total" id="left"></div>
+    </div>
+  </div>
+
+  <div class="keys" id="keys" style="display:none">Space lock · ←/→ nudge · T hide · F fullscreen</div>
+
+<script>
+(function () {
+  const params = new URLSearchParams(location.search);
+  const R = 45, CIRC = 2 * Math.PI * R;
+  const $ = (id) => document.getElementById(id);
+  const prog = $('prog'), secsEl = $('secs'), curEl = $('cur'), totEl = $('tot'), leftEl = $('left');
+  const timer = $('timer'), gate = $('gate'), keys = $('keys');
+  const urlIn = $('url'), startBtn = $('start'), nIn = $('nSlides'), perIn = $('perSec');
+  prog.style.strokeDasharray = CIRC;
+
+  // Build the embed src ourselves so auto-advance always works: only /embed can
+  // be framed, and start=true + delayms=<sec> is what makes it actually advance
+  // (independent of whatever the publish dialog set). We strip the pasted query
+  // and set our own params.
+  const buildSrc = (u, per) => {
+    const base = u.trim().replace(/\/pub(\?|$)/, '/embed$1').split('?')[0].split('#')[0];
+    return `${base}?start=true&loop=false&delayms=${per * 1000}`;
+  };
+
+  // Prefill from ?src= (keep your link in a private bookmark, not in the repo).
+  if (params.get('src')) urlIn.value = params.get('src');
+  const okUrl = () => /docs\.google\.com\/presentation\//.test(urlIn.value);
+  const refresh = () => { startBtn.disabled = !okUrl(); };
+  urlIn.addEventListener('input', refresh); refresh();
+
+  let N = 20, PER = 20, startAt = 0, raf = null, wakeLock = null, frame = null, running = false;
+  const fmt = (s) => { s = Math.max(0, Math.ceil(s)); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); };
+  const paint = (c) => { prog.style.stroke = c; secsEl.style.color = c; };
+
+  function tick() {
+    const elapsed = (performance.now() - startAt) / 1000;   // seconds since slide 1 began
+    const idx = Math.floor(elapsed / PER);                   // 0-based current slide
+    if (idx >= N) { finish(); return; }
+    const remain = PER - (elapsed - idx * PER);
+    curEl.textContent = idx + 1;
+    secsEl.textContent = Math.ceil(remain);
+    leftEl.textContent = fmt(N * PER - elapsed) + ' left';
+    prog.style.strokeDashoffset = CIRC * (1 - remain / PER);
+    if (remain <= 3) { paint('var(--alert)'); timer.classList.add('pulse'); }
+    else if (remain <= 5) { paint('var(--warn)'); timer.classList.remove('pulse'); }
+    else { paint('var(--calm)'); timer.classList.remove('pulse'); }
+    raf = requestAnimationFrame(tick);
+  }
+  function finish() {
+    cancelAnimationFrame(raf); raf = null; running = false;
+    timer.classList.remove('pulse'); secsEl.textContent = '✓'; paint('#4ade80');
+    prog.style.strokeDashoffset = 0; curEl.textContent = N; leftEl.textContent = 'Done';
+    releaseWake();
+  }
+  async function requestWake() { try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} }
+  function releaseWake() { try { wakeLock && wakeLock.release(); } catch (e) {} wakeLock = null; }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && running) requestWake(); });
+
+  function begin() {
+    if (!okUrl()) return;
+    N = Math.max(1, parseInt(nIn.value) || 20);
+    PER = Math.max(1, parseInt(perIn.value) || 20);
+    totEl.textContent = N; secsEl.textContent = PER; leftEl.textContent = fmt(N * PER) + ' left';
+
+    frame = document.createElement('iframe');
+    frame.id = 'frame';
+    frame.allow = 'autoplay; fullscreen';
+    frame.src = buildSrc(urlIn.value, PER);
+    document.body.appendChild(frame);
+    gate.style.display = 'none';
+
+    // Start the timer now (on your click). The embed begins advancing a moment
+    // later once it loads; a single Space tap on the first slide change locks the
+    // constant offset away for the rest (both run at 20s, so no drift after).
+    startAt = performance.now(); running = true;
+    timer.style.display = 'flex'; keys.style.display = 'block';
+    setTimeout(() => { keys.style.opacity = '0'; }, 8000);
+    requestWake(); tick();
+  }
+  // Tap when a slide changes: restart the current slide's countdown from now.
+  // Aligns the countdown WITHOUT bumping the slide number (that phantom bump made
+  // the timer finish one slide early).
+  function resync() { const idx = Math.floor((performance.now() - startAt) / (PER * 1000)); startAt = performance.now() - idx * PER * 1000; }
+  function nudge(ms) { startAt += ms; }
+
+  startBtn.addEventListener('click', begin);
+
+  const privacy = $('privacy');
+  $('privacyBtn').addEventListener('click', () => { privacy.style.display = 'flex'; });
+  $('privacyClose').addEventListener('click', () => { privacy.style.display = 'none'; });
+  privacy.addEventListener('click', (e) => { if (e.target === privacy) privacy.style.display = 'none'; });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && privacy.style.display === 'flex') privacy.style.display = 'none'; });
+  document.addEventListener('keydown', (e) => {
+    if (!running) return;
+    if (e.code === 'Space') { e.preventDefault(); resync(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); nudge(250); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); nudge(-250); }
+    else if (e.key.toLowerCase() === 't') timer.classList.toggle('hidden');
+    else if (e.key.toLowerCase() === 'f') { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {}); }
+  });
+})();
+</script>
+</body>
+</html>
