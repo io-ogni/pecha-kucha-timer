@@ -12,7 +12,9 @@
 
   /* Slightly taller than the window so Google's bottom "Google Slides" bar is
      clipped off. */
-  #frame { position: fixed; top: 0; left: 0; width: 100%; height: calc(100% + 46px); border: 0; background: #000; }
+  /* pointer-events:none so clicks never move keyboard focus into the cross-origin
+     slides iframe — otherwise Space/arrows would go to Google, not our timer. */
+  #frame { position: fixed; top: 0; left: 0; width: 100%; height: calc(100% + 46px); border: 0; background: #000; pointer-events: none; }
 
   #gate { position: fixed; inset: 0; z-index: 30; background: var(--bg);
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.2rem; text-align: center; padding: 1.2rem; }
@@ -153,6 +155,7 @@
     frame.src = buildSrc(urlIn.value, PER);
     document.body.appendChild(frame);
     gate.style.display = 'none';
+    window.focus();  // keep keyboard focus on us, not the slides iframe
 
     // Start the timer now (on your click). The embed begins advancing a moment
     // later once it loads; a single Space tap on the first slide change locks the
@@ -182,6 +185,15 @@
     else if (e.key === 'ArrowLeft') { e.preventDefault(); nudge(-250); }
     else if (e.key.toLowerCase() === 't') timer.classList.toggle('hidden');
     else if (e.key.toLowerCase() === 'f') { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {}); }
+  });
+
+  // If the slides iframe ever steals keyboard focus (e.g. Google auto-focuses it
+  // on load), pull it back so Space/arrows keep reaching the timer. Guarded to the
+  // iframe only, so it doesn't fight a real alt-tab to another window.
+  window.addEventListener('blur', () => {
+    if (running && frame && document.activeElement === frame) {
+      setTimeout(() => window.focus(), 0);
+    }
   });
 })();
 </script>
